@@ -67,7 +67,7 @@ int main() {
 
         if (pid == 0) {
             close(listen_sock);
-            printf("You got a connection from %s\n", inet_ntoa(client.sin_addr));
+            printf("You got a connection from %s:%hu\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
             echo(conn_sock);
             exit(0);
         }

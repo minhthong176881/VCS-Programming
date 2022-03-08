@@ -1,15 +1,44 @@
-#include <stdio.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <sys/socket.h>
-#include <sys/types.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <libgen.h>
+#include <pthread.h>
 
 #define SERVER_ADDR "127.0.0.1"
 #define SERVER_PORT 5550
 #define BUFF_SIZE 1024
 
+void *connectionHandler();
+
 int main() {
+    int no_threads = 0;
+    pthread_t threads[100];
+
+    while (no_threads < 100)
+    {
+        if (pthread_create(&threads[no_threads], NULL, connectionHandler, NULL) < 0) {
+            perror("Error");
+            return 0;
+        }
+
+        no_threads++;
+    }
+
+    int k = 0;
+    for (k = 0; k < 100; k++) {
+        pthread_join(threads[k], NULL);
+    }
+
+    return 0;
+}
+
+void *connectionHandler() {
     int client_sock;
     char buff[BUFF_SIZE + 1];
     struct sockaddr_in server_addr;
@@ -26,9 +55,10 @@ int main() {
         return 0;
     }
 
-    printf("\nInsert string to send: ");
+    printf("Socket %d connected.\n", client_sock);
+
     memset(buff, '\0', (strlen(buff) + 1));
-    fgets(buff, BUFF_SIZE, stdin);
+    sprintf(buff, "%d", client_sock);
     msg_len = strlen(buff);
 
     bytes_sent = send(client_sock, buff, msg_len, 0);
@@ -43,8 +73,9 @@ int main() {
         printf("Connection closed.\n");
     }
     buff[bytes_received] = '\0';
-    printf("Reply from server: %s\n", buff);
+    printf("Reply from server to socket %d: %s\n", client_sock, buff);
 
+    printf("Socket %d closing...\n", client_sock);
     close(client_sock);
     return 0;
 }

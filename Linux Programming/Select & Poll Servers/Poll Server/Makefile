@@ -1,4 +1,4 @@
-CFLAGS = -Wall -g
+CFLAGS = -Wall -pthread
 CC = gcc
 
 all: clean serverBuild clientBuild
