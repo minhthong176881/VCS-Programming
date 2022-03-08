@@ -32,25 +32,30 @@ int main() {
         return 0;
     }
 
-    printf("\nInsert string to send: ");
+    while(1) {
+        printf("\nInsert string to send: ");
     
-    memset(buff, '\0', (strlen(buff) + 1));
-    fgets(buff, BUFF_SIZE, stdin);
-    msg_len = strlen(buff);
+        memset(buff, '\0', (strlen(buff) + 1));
+        fgets(buff, BUFF_SIZE, stdin);
+        msg_len = strlen(buff);
 
-    bytes_sent = send(client_sock, buff, msg_len, 0);
-    if (bytes_sent < 0) {
-        perror("Send error: ");
+        bytes_sent = send(client_sock, buff, msg_len, 0);
+        if (bytes_sent < 0) {
+            perror("Send error: ");
+        }
+
+        if (strcmp(buff, "exit\n") == 0) break;
+        
+        bytes_received = recv(client_sock, buff, BUFF_SIZE, 0);
+        if (bytes_received < 0) {
+            perror("Receive error: ");
+        } else if (bytes_received == 0) {
+            printf("Connection closed.\n");
+            break;
+        }
+        buff[bytes_received] = '\0';
+        printf("Echo message from the server: %s", buff);
     }
-    
-    bytes_received = recv(client_sock, buff, BUFF_SIZE, 0);
-    if (bytes_received < 0) {
-        perror("Receive error: ");
-    } else if (bytes_received == 0) {
-        printf("Connection closed.\n");
-    }
-    buff[bytes_received] = '\0';
-    printf("Reply from server: %s\n", buff);
 
     close(client_sock);
     return 0;

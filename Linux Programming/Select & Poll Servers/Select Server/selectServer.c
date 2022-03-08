@@ -24,7 +24,7 @@ int sendData(int s, char *buff, int size, int flags);
 
 int main()
 {
-    int i, maxi, maxfd, listenfd, connfd, sockfd;
+    int i, maxi, maxfd, listenfd, connfd;
     int nready, client[FD_SETSIZE];
     ssize_t ret;
     fd_set readfds, allset;
@@ -77,7 +77,7 @@ int main()
         if (FD_ISSET(listenfd, &readfds))
         { // new client connection
             clilen = sizeof(cliaddr);
-            if (connfd = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen) < 0)
+            if ((connfd = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen)) < 0)
             {
                 perror("Error: ");
             }
@@ -115,7 +115,7 @@ int main()
                 continue;
             if (FD_ISSET(connfd, &readfds))
             {
-                ret = receiveData(sockfd, recvBuff, BUFF_SIZE, 0);
+                ret = receiveData(connfd, recvBuff, BUFF_SIZE, 0);
                 if (ret <= 0)
                 {
                     FD_CLR(connfd, &allset);
@@ -125,11 +125,11 @@ int main()
                 else
                 {
                     processData(recvBuff, sendBuff);
-                    ret = sendData(sockfd, sendBuff, ret, 0);
+                    ret = sendData(connfd, sendBuff, ret, 0);
                     if (ret <= 0)
                     {
-                        FD_CLR(sockfd, &allset);
-                        close(sockfd);
+                        FD_CLR(connfd, &allset);
+                        close(connfd);
                         client[i] = -1;
                     }
                 }
