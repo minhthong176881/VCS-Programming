@@ -107,4 +107,41 @@
   ```
 
 - Results:
+  - Start the server: server listening with socket 3.
 
+  ![1.png](img/1.png)
+
+  - Start the client: 120 threads connect to the server.
+
+  ![2.png](img/2.png)
+
+  - Server accepts and connects with clients:
+
+  ![3.png](img/3.png)
+
+  - After connecting, clients send the message to the server:
+
+  ![4.png](img/4.png)
+
+  - Server echos the received message to the clients:
+
+  ![5.png](img/5.png)
+
+  - After receving message from the server, the clients close connection:
+    - Client:
+
+      ![6.png](img/6.png)
+
+    - Server:
+
+      ![7.png](img/7.png)
+
+  - When there is no new connection and data from existing connection, the server close the socket and exit:
+
+  ![8.png](img/8.png)
+
+## Conclusion
+
+- I/O multiplexing has good control in terms of memory usage. It has high performance and low resource consumption.
+- I/O multiplexing can manage multiple sockets with only one thread, and the system does not need to create new proccesses or threads (compare to forking server and multi-threaded server).
+- However, when only processing a small number of connections, the poll server is not as efficients as the multi-threaded blocking I/O model because the poll server requires 2 system calls for a single connection processing (poll() and for example recvfrom()) while blocking I/O model only blocks the system call recvfrom().
