@@ -49,18 +49,7 @@ int main(int argc, char **argv) {
     const int OPEN_MAX = 121; // maximum number of opened files
     struct pollfd clients[OPEN_MAX];
     ssize_t n;
-    int pool_timeout = 6000;
-
-    // if (argc != 2) {
-    //     usage(argv[0]);
-    //     return EXIT_FAILURE;
-    // }
-
-    // port = atoi(argv[1]);
-    // if (port <= 0 || port > 65535) {
-    //     fprintf(stderr, "Invalid port number %d\n", port);
-    //     return EXIT_FAILURE;
-    // }
+    int pool_timeout = 6000; // time for poll to wait
 
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         fprintf(stderr, "Error: socket\n");
@@ -116,7 +105,7 @@ int main(int argc, char **argv) {
             printf("Accept socket %d (%s:%hu)\n", connfd, inet_ntoa(cliaddr.sin_addr), ntohs(cliaddr.sin_port));
 
             // save client socket into clients array
-            for (i = 0; i < OPEN_MAX; i ++) {
+            for (i = 0; i < OPEN_MAX; i++) {
                 if (clients[i].fd < 0) {
                     clients[i].fd = connfd;
                     break;
