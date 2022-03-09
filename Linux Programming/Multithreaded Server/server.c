@@ -43,8 +43,8 @@ int main() {
     else printf("Server is listening...\n");
 
     int no_threads = 0;
-    pthread_t threads[100];
-    while (no_threads < 100) {
+    pthread_t threads[110];
+    while (no_threads < 110) {
         clilen = sizeof(client_addr);
         int client_socket = accept(server_socket, (struct sockaddr *) &client_addr, &clilen);
         if (pthread_create(&threads[no_threads], NULL, connectionHandler, &client_socket) < 0) {
@@ -62,7 +62,7 @@ int main() {
     }
 
     int k = 0;
-    for (k = 0; k < 100; k++) {
+    for (k = 0; k < 110; k++) {
         pthread_join(threads[k], NULL);
     }
 
