@@ -12,8 +12,8 @@
 #include <sys/wait.h>
 #include <errno.h>
 
-#define PORT 5550
-#define LISTENQ 100
+#define PORT 5500
+#define LISTENQ 101
 #define BUFF_SIZE 1024
 
 // handler process signal
