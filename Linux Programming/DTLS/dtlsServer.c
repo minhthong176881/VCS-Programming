@@ -26,8 +26,8 @@ SSL_CTX* initServerCtx(void) {
 
     OpenSSL_add_all_algorithms(); // load & register all cryptos, etc.
     SSL_load_error_strings(); // load all error messages
-    method = TLSv1_2_server_method();
-    ctx = SSL_CTX_new(method);
+    method = TLSv1_2_server_method(); // create new server-method instance
+    ctx = SSL_CTX_new(method); // create new context from method
     if (ctx == NULL) {
         ERR_print_errors_fp(stderr);
         abort();
@@ -155,11 +155,11 @@ int main(int argc, char **argv) {
         SSL_set_fd(ssl, listenfd);
 
         if (SSL_accept(ssl) <= 0) {
-            int e = SSL_get_error(ssl, 0);
-            printf("error = %d\n", e);
-            printf("SSL_accept failed.\n");
+            ERR_print_errors_fp(stderr);
             break;
         }
+
+        showCerts(ssl);
 
         if ((recvLen = SSL_read(ssl, buff, sizeof(buff)-1)) > 0) {
             printf("heard %d bytes.\n", recvLen);
@@ -167,11 +167,8 @@ int main(int argc, char **argv) {
             buff[recvLen] = 0;
             printf("I heard this: \"%s\"\n", buff);
         } else if (recvLen < 0) {
-            int readErr = SSL_get_error(ssl, 0);
-            if(readErr != SSL_ERROR_WANT_READ) {
-                printf("SSL_read failed.\n");
-                break;
-            }
+            ERR_print_errors_fp(stderr);
+            break;
         }
 
         if (SSL_write(ssl, ack, sizeof(ack)) < 0) {
@@ -184,7 +181,6 @@ int main(int argc, char **argv) {
         printf("Reply sent \"%s\"\n", ack);
 
         SSL_set_fd(ssl, 0);
-        SSL_shutdown(ssl);
         SSL_free(ssl);
         close(listenfd);
         cleanup = 0;
@@ -194,7 +190,6 @@ int main(int argc, char **argv) {
 
     if (cleanup == 1) {
         SSL_set_fd(ssl, 0);
-        SSL_shutdown(ssl);
         SSL_free(ssl);
         close(listenfd);
     }
