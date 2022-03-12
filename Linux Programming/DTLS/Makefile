@@ -1,20 +1,23 @@
-CFLAGS = -Wall -g
+CFLAGS = -Wall -g -LLIBDIR -pthread
 CC = gcc
-LIB = -L/usr/lib -lssl -lcrypto
+LIB = -I/usr/local/include -L/usr/local/lib -lwolfssl
 
-all: clean serverBuild clientBuild
+all: clean serverBuild clientBuild serverThreadedBuild
 
 .PHONY: client server
 
-server: cleanServer serverBuild
+server: cleanServer serverBuild serverThreadedBuild
 
 client: cleanClient clientBuild
 
 serverBuild:
-	${CC} ${CFLAGS} -o server dtlsServer.c ${LIB}
+	${CC} ${CFLAGS} -o server server.c ${LIB}
 
 clientBuild:
-	${CC} ${CFLAGS} -o client dtlsClient.c ${LIB}
+	${CC} ${CFLAGS} -o client client.c ${LIB}
+
+serverThreadedBuild:
+	${CC} ${CFLAGS} -o server-threaded server-threaded.c ${LIB}
 
 cleanServer:
 	rm -f server
@@ -23,4 +26,4 @@ cleanClient:
 	rm -f client
 
 clean:
-	rm -f client server
+	rm -f client server serverThreadedBuild

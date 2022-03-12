@@ -23,7 +23,7 @@ int main (int argc, char** argv)
     struct          sockaddr_in servAddr;
     WOLFSSL*        ssl = 0;
     WOLFSSL_CTX*    ctx = 0;
-    char            cert_array[]  = "../certs/ca-cert.pem";
+    char            cert_array[]  = "./certs/ca-cert.pem";
     char*           certs = cert_array;
     char            sendLine[MAXLINE];
     char            recvLine[MAXLINE - 1];
@@ -83,6 +83,8 @@ int main (int argc, char** argv)
         return 1;
     }
 
+    printf("Connected to server.\n");
+
 /*****************************************************************************/
 /*                  Code for sending datagram to server                      */
     /* Loop until the user is finished */
@@ -104,9 +106,12 @@ int main (int argc, char** argv)
             }
         }
 
+        if (n == 0) printf("Connection closed!\n");
+
         /* Add a terminating character to the generic server message */
         recvLine[n] = '\0';
-        fputs(recvLine, stdout);
+        printf("Server acknowledgment: %s\n", recvLine);
+        // fputs(recvLine, stdout);
     }
 /*                End code for sending datagram to server                    */
 /*****************************************************************************/

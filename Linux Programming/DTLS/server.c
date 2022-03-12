@@ -23,9 +23,9 @@ void sig_handler(const int sig);
 int main(int argc, char** argv)
 {
     /* Loc short for "location" */
-    char        caCertLoc[] = "../certs/ca-cert.pem";
-    char        servCertLoc[] = "../certs/server-cert.pem";
-    char        servKeyLoc[] = "../certs/server-key.pem";
+    char        caCertLoc[] = "./certs/ca-cert.pem";
+    char        servCertLoc[] = "./certs/server-cert.pem";
+    char        servKeyLoc[] = "./certs/server-key.pem";
     WOLFSSL_CTX* ctx;
     /* Variables for awaiting datagram */
     int           on = 1;
@@ -58,14 +58,12 @@ int main(int argc, char** argv)
         return 1;
     }
     /* Load server certificates */
-    if (wolfSSL_CTX_use_certificate_file(ctx, servCertLoc, SSL_FILETYPE_PEM) != 
-                                                                 SSL_SUCCESS) {
+    if (wolfSSL_CTX_use_certificate_file(ctx, servCertLoc, SSL_FILETYPE_PEM) != SSL_SUCCESS) {
         printf("Error loading %s, please check the file.\n", servCertLoc);
         return 1;
     }
     /* Load server Keys */
-    if (wolfSSL_CTX_use_PrivateKey_file(ctx, servKeyLoc,
-                SSL_FILETYPE_PEM) != SSL_SUCCESS) {
+    if (wolfSSL_CTX_use_PrivateKey_file(ctx, servKeyLoc, SSL_FILETYPE_PEM) != SSL_SUCCESS) {
         printf("Error loading %s, please check the file.\n", servKeyLoc);
         return 1;
     }
@@ -106,8 +104,7 @@ int main(int argc, char** argv)
         printf("Awaiting client connection on port %d\n", SERV_PORT);
 
         cliLen = sizeof(cliaddr);
-        connfd = (int)recvfrom(listenfd, (char *)&b, sizeof(b), MSG_PEEK,
-                (struct sockaddr*)&cliaddr, &cliLen);
+        connfd = (int)recvfrom(listenfd, (char *)&b, sizeof(b), MSG_PEEK, (struct sockaddr*)&cliaddr, &cliLen);
 
         if (connfd < 0) {
             printf("No clients in que, enter idle state\n");
@@ -115,8 +112,7 @@ int main(int argc, char** argv)
             continue;
         }
         else if (connfd > 0) {
-            if (connect(listenfd, (const struct sockaddr *)&cliaddr,
-                        sizeof(cliaddr)) != 0) {
+            if (connect(listenfd, (const struct sockaddr *)&cliaddr,sizeof(cliaddr)) != 0) {
                 printf("Udp connect failed.\n");
                 break;
             }
@@ -152,7 +148,8 @@ int main(int argc, char** argv)
         if ((recvLen = wolfSSL_read(ssl, buff, sizeof(buff)-1)) > 0) {
             printf("heard %d bytes\n", recvLen);
 
-            buff[recvLen] = 0;
+            buff[recvLen] = '\0';
+
             printf("I heard this: \"%s\"\n", buff);
         }
         else if (recvLen < 0) {
@@ -162,6 +159,7 @@ int main(int argc, char** argv)
                 break;
             }
         }
+
         if (wolfSSL_write(ssl, ack, sizeof(ack)) < 0) {
             printf("wolfSSL_write fail.\n");
             break;
@@ -170,7 +168,7 @@ int main(int argc, char** argv)
             printf("Sending reply.\n");
         }
 
-        printf("reply sent \"%s\"\n", ack);
+        printf("reply sent \"%s\"\n", buff);
 
         wolfSSL_set_fd(ssl, 0);
         wolfSSL_shutdown(ssl);
