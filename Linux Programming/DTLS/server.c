@@ -21,9 +21,9 @@ struct sockaddr_in cliaddr;         /* the client's address */
 int main(int argc, char** argv)
 {
     /* Loc short for "location" */
-    char        caCertLoc[] = "./certs/ca-cert.pem";
-    char        servCertLoc[] = "./certs/server-cert.pem";
-    char        servKeyLoc[] = "./certs/server-key.pem";
+    char        caCertLoc[] = "./certs/rootCA.crt";
+    char        servCertLoc[] = "./certs/server.crt";
+    char        servKeyLoc[] = "./certs/server.key";
     WOLFSSL_CTX* ctx;
     /* Variables for awaiting datagram */
     int           on = 1;
@@ -168,7 +168,7 @@ int main(int argc, char** argv)
         cleanup = 0;
 
         printf("Client left cont to idle state\n");
-        printf("-----------------------------------------------------\n");
+        printf("--------------------------------------------\n");
     }
     
     /* cleanup */
