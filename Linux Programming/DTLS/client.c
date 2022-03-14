@@ -85,38 +85,57 @@ int main (int argc, char** argv)
 
     printf("Connected to server.\n");
 
-/*****************************************************************************/
-/*                  Code for sending datagram to server                      */
-    /* Loop until the user is finished */
-    if (fgets(sendLine, MAXLINE, stdin) != NULL) {
-
-        /* Send sendLine to the server */
-        if ( ( wolfSSL_write(ssl, sendLine, strlen(sendLine)))
-                != strlen(sendLine)) {
-            printf("SSL_write failed");
-        }
-
-        /* n is the # of bytes received */
-        n = wolfSSL_read(ssl, recvLine, sizeof(recvLine)-1);
-
-        if (n < 0) {
-            readErr = wolfSSL_get_error(ssl, 0);
-            if (readErr != SSL_ERROR_WANT_READ) {
-                printf("wolfSSL_read failed");
-            }
-        }
-
-        if (n == 0) printf("Connection closed!\n");
-
-        /* Add a terminating character to the generic server message */
-        recvLine[n] = '\0';
-        printf("Server acknowledgment: %s\n", recvLine);
-        // fputs(recvLine, stdout);
+    printf("Insert message to the server: ");
+    memset(sendLine, '\0', (strlen(sendLine) + 1));
+    fgets(sendLine, MAXLINE, stdin);
+    
+    if ( ( wolfSSL_write(ssl, sendLine, strlen(sendLine))) != strlen(sendLine)) {
+        printf("SSL_write failed");
     }
-/*                End code for sending datagram to server                    */
-/*****************************************************************************/
 
-    /* Housekeeping */
+    /* n is the # of bytes received */
+    n = wolfSSL_read(ssl, recvLine, sizeof(recvLine)-1);
+
+    if (n < 0) {
+        readErr = wolfSSL_get_error(ssl, 0);
+        if (readErr != SSL_ERROR_WANT_READ) {
+            printf("wolfSSL_read failed");
+        }
+    }
+
+    if (n == 0) printf("Connection closed!\n");
+
+    /* Add a terminating character to the generic server message */
+    recvLine[n] = '\0';
+    printf("Server acknowledgment: %s\n", recvLine);
+    
+    // if (fgets(sendLine, MAXLINE, stdin) != NULL) {
+
+    //     /* Send sendLine to the server */
+    //     if ( ( wolfSSL_write(ssl, sendLine, strlen(sendLine)))
+    //             != strlen(sendLine)) {
+    //         printf("SSL_write failed");
+    //     }
+
+    //     /* n is the # of bytes received */
+    //     n = wolfSSL_read(ssl, recvLine, sizeof(recvLine)-1);
+
+    //     if (n < 0) {
+    //         readErr = wolfSSL_get_error(ssl, 0);
+    //         if (readErr != SSL_ERROR_WANT_READ) {
+    //             printf("wolfSSL_read failed");
+    //         }
+    //     }
+
+    //     if (n == 0) printf("Connection closed!\n");
+
+    //     /* Add a terminating character to the generic server message */
+    //     recvLine[n] = '\0';
+    //     printf("Server acknowledgment: %s\n", recvLine);
+    //     // fputs(recvLine, stdout);
+    // }
+
+    /* cleanup */
     wolfSSL_shutdown(ssl);
     wolfSSL_free(ssl);
     close(sockfd);

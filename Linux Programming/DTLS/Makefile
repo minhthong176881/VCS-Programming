@@ -1,12 +1,12 @@
-CFLAGS = -Wall -g -LLIBDIR -pthread
+CFLAGS = -Wall -g -LLIBDIR
 CC = gcc
 LIB = -I/usr/local/include -L/usr/local/lib -lwolfssl
 
-all: clean serverBuild clientBuild serverThreadedBuild
+all: clean serverBuild clientBuild
 
 .PHONY: client server
 
-server: cleanServer serverBuild serverThreadedBuild
+server: cleanServer serverBuild 
 
 client: cleanClient clientBuild
 
@@ -16,9 +16,6 @@ serverBuild:
 clientBuild:
 	${CC} ${CFLAGS} -o client client.c ${LIB}
 
-serverThreadedBuild:
-	${CC} ${CFLAGS} -o server-threaded server-threaded.c ${LIB}
-
 cleanServer:
 	rm -f server
 
@@ -26,4 +23,4 @@ cleanClient:
 	rm -f client
 
 clean:
-	rm -f client server serverThreadedBuild
+	rm -f client server

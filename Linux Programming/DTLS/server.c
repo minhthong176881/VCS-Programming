@@ -38,7 +38,7 @@ int main(int argc, char** argv)
     socklen_t     len = sizeof(int);
     unsigned char b[MSGLEN];      /* watch for incoming messages */
     char          buff[MSGLEN];   /* the incoming message */
-    char          ack[] = "I hear you fashizzle!\n";
+    char          ack[] = "I hear you fashizzle!";
 
     /* "./config --enable-debug" and uncomment next line for debugging */
     wolfSSL_Debugging_ON(); 
@@ -168,7 +168,7 @@ int main(int argc, char** argv)
             printf("Sending reply.\n");
         }
 
-        printf("reply sent \"%s\"\n", buff);
+        printf("reply sent \"%s\"\n", ack);
 
         wolfSSL_set_fd(ssl, 0);
         wolfSSL_shutdown(ssl);
