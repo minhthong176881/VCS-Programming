@@ -36,17 +36,14 @@ int main (int argc, char** argv)
 
     /* Initialize wolfSSL before assigning ctx */
     wolfSSL_Init();
-  
-    /* wolfSSL_Debugging_ON(); */
 
-    if ( (ctx = wolfSSL_CTX_new(wolfDTLSv1_2_client_method())) == NULL) {
+    if ((ctx = wolfSSL_CTX_new(wolfDTLSv1_2_client_method())) == NULL) {
         fprintf(stderr, "wolfSSL_CTX_new error.\n");
         return 1;
     }
 
     /* Load certificates into ctx variable */
-    if (wolfSSL_CTX_load_verify_locations(ctx, certs, 0)
-	    != SSL_SUCCESS) {
+    if (wolfSSL_CTX_load_verify_locations(ctx, certs, 0) != SSL_SUCCESS) {
         fprintf(stderr, "Error loading %s, please check the file.\n", certs);
         return 1;
     }
@@ -69,7 +66,7 @@ int main (int argc, char** argv)
 
     wolfSSL_dtls_set_peer(ssl, &servAddr, sizeof(servAddr));
 
-    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
        printf("cannot create a socket.");
        return 1;
     }
@@ -85,62 +82,44 @@ int main (int argc, char** argv)
 
     printf("Connected to server.\n");
 
-    printf("Insert message to the server: ");
-    memset(sendLine, '\0', (strlen(sendLine) + 1));
-    fgets(sendLine, MAXLINE, stdin);
-    
-    if ( ( wolfSSL_write(ssl, sendLine, strlen(sendLine))) != strlen(sendLine)) {
-        printf("SSL_write failed");
-    }
+    for (;;) {
+        printf("Insert message to the server: ");
+        memset(sendLine, '\0', (strlen(sendLine) + 1));
+        fgets(sendLine, MAXLINE, stdin);
 
-    /* n is the # of bytes received */
-    n = wolfSSL_read(ssl, recvLine, sizeof(recvLine)-1);
-
-    if (n < 0) {
-        readErr = wolfSSL_get_error(ssl, 0);
-        if (readErr != SSL_ERROR_WANT_READ) {
-            printf("wolfSSL_read failed");
+        if (strcmp(sendLine, "quit\n") == 0) {
+            break;
         }
+        
+        if ((wolfSSL_write(ssl, sendLine, strlen(sendLine))) != strlen(sendLine)) {
+            printf("SSL_write failed");
+        }
+
+        /* n is the # of bytes received */
+        n = wolfSSL_read(ssl, recvLine, sizeof(recvLine)-1);
+
+        if (n < 0) {
+            readErr = wolfSSL_get_error(ssl, 0);
+            if (readErr != SSL_ERROR_WANT_READ) {
+                printf("wolfSSL_read failed");
+            }
+        }
+
+        if (n == 0) printf("Connection closed!\n");
+
+        /* Add a terminating character to the generic server message */
+        recvLine[n] = '\0';
+        printf("Server acknowledgment: %s\n", recvLine);
     }
-
-    if (n == 0) printf("Connection closed!\n");
-
-    /* Add a terminating character to the generic server message */
-    recvLine[n] = '\0';
-    printf("Server acknowledgment: %s\n", recvLine);
     
-    // if (fgets(sendLine, MAXLINE, stdin) != NULL) {
-
-    //     /* Send sendLine to the server */
-    //     if ( ( wolfSSL_write(ssl, sendLine, strlen(sendLine)))
-    //             != strlen(sendLine)) {
-    //         printf("SSL_write failed");
-    //     }
-
-    //     /* n is the # of bytes received */
-    //     n = wolfSSL_read(ssl, recvLine, sizeof(recvLine)-1);
-
-    //     if (n < 0) {
-    //         readErr = wolfSSL_get_error(ssl, 0);
-    //         if (readErr != SSL_ERROR_WANT_READ) {
-    //             printf("wolfSSL_read failed");
-    //         }
-    //     }
-
-    //     if (n == 0) printf("Connection closed!\n");
-
-    //     /* Add a terminating character to the generic server message */
-    //     recvLine[n] = '\0';
-    //     printf("Server acknowledgment: %s\n", recvLine);
-    //     // fputs(recvLine, stdout);
-    // }
-
     /* cleanup */
+    printf("Closing connection...\n");
     wolfSSL_shutdown(ssl);
     wolfSSL_free(ssl);
     close(sockfd);
     wolfSSL_CTX_free(ctx);
     wolfSSL_Cleanup();
+    printf("Done.\n");
 
     return 0;
 }
