@@ -46,10 +46,10 @@ int main(int argc, char **argv) {
     socklen_t clilen;
     struct sockaddr_in cliaddr, servaddr;
     char buf[BUF_SIZE];
-    const int OPEN_MAX = 121; // maximum number of opened files
+    const int OPEN_MAX = 1001; // maximum number of opened files
     struct pollfd clients[OPEN_MAX];
     ssize_t n;
-    int pool_timeout = 6000; // time for poll to wait
+    int pool_timeout = -1; // time for poll to wait
 
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         fprintf(stderr, "Error: socket\n");
@@ -142,6 +142,7 @@ int main(int argc, char **argv) {
                     close(sockfd);
                     clients[i].fd = -1;
                 } else {
+                    sleep(5);
                     printf("Read %zu bytes from socket %d\n", n, sockfd);
                     writen(sockfd, buf, n);
                 }

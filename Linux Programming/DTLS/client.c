@@ -1,127 +1,133 @@
-#include <wolfssl/options.h>
-#include <unistd.h>
-#include <wolfssl/ssl.h>
-#include <netdb.h>
-#include <signal.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/time.h>
+#include <sys/types.h>
 
-#define MAXLINE   4096
-#define SERV_PORT 11111
+#include <openssl/ssl.h>
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/rand.h>
+#include <openssl/opensslv.h>
 
-int main (int argc, char** argv)
-{
-    /* standard variables used in a dtls client*/
-    int             n = 0;
-    int             sockfd = 0;
-    int             err1;
-    int             readErr;
-    struct          sockaddr_in servAddr;
-    WOLFSSL*        ssl = 0;
-    WOLFSSL_CTX*    ctx = 0;
-    char            cert_array[]  = "./certs/rootCA.crt";
-    char*           certs = cert_array;
-    char            sendLine[MAXLINE];
-    char            recvLine[MAXLINE - 1];
+#define SERV_PORT 1255
+#define BUFFER_SIZE (1<<16)
 
-    /* Program argument checking */
-    if (argc != 2) {
-        printf("usage: udpcli <IP address>\n");
-        return 1;
+int main(int agrc, char **argv) {
+    int sockfd, retval;
+    struct sockaddr_in servaddr;
+    int len;
+    char buf[BUFFER_SIZE];
+	char addrbuf[INET6_ADDRSTRLEN];
+    SSL_CTX *ctx;
+	SSL *ssl;
+	BIO *bio;
+	int reading = 0;
+	struct timeval timeout;
+    int messagenumber = 5;
+
+    memset(&servaddr, 0, sizeof(servaddr));
+
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(SERV_PORT);
+    servaddr.sin_addr.s_addr = inet_addr(argv[1]);
+
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    printf("Socket created.\n");
+
+    OpenSSL_add_ssl_algorithms();
+    SSL_load_error_strings();
+    ctx = SSL_CTX_new(DTLS_client_method());
+
+    if (!SSL_CTX_use_certificate_file(ctx, "certs/client-cert.pem", SSL_FILETYPE_PEM))
+		printf("\nERROR: no certificate found!");
+
+	if (!SSL_CTX_use_PrivateKey_file(ctx, "certs/client-key.pem", SSL_FILETYPE_PEM))
+		printf("\nERROR: no private key found!");
+
+	if (!SSL_CTX_check_private_key (ctx))
+		printf("\nERROR: invalid private key!");
+
+	SSL_CTX_set_verify_depth (ctx, 2);
+	SSL_CTX_set_read_ahead(ctx, 1);
+
+	ssl = SSL_new(ctx);
+
+    // create BIO, connect and set to already connected
+    bio = BIO_new_dgram(sockfd, BIO_CLOSE);
+    if (connect(sockfd, (struct sockaddr *) &servaddr, sizeof(struct sockaddr_in))) {
+        perror("connect");
     }
 
-    /* Initialize wolfSSL before assigning ctx */
-    wolfSSL_Init();
+    BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_CONNECTED, 0, &servaddr);
 
-    if ((ctx = wolfSSL_CTX_new(wolfDTLSv1_2_client_method())) == NULL) {
-        fprintf(stderr, "wolfSSL_CTX_new error.\n");
-        return 1;
+    SSL_set_bio(ssl, bio, bio);
+
+    retval = SSL_connect(ssl);
+
+    if (retval <= 0) {
+        printf("SSL_connect error!\n");
+		exit(EXIT_FAILURE);
+	}
+
+    // set and activate timeouts 
+	timeout.tv_sec = 3;
+	timeout.tv_usec = 0;
+	BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &timeout);
+	printf ("\nConnected to %s\n",
+			inet_ntop(AF_INET, &servaddr.sin_addr, addrbuf, INET_ADDRSTRLEN));
+
+    if (SSL_get_peer_certificate(ssl)) {
+        printf ("------------------------------------------------------------\n");
+		X509_NAME_print_ex_fp(stdout, X509_get_subject_name(SSL_get_peer_certificate(ssl)),
+							  1, XN_FLAG_MULTILINE);
+		printf("\n\n Cipher: %s", SSL_CIPHER_get_name(SSL_get_current_cipher(ssl)));
+		printf ("\n------------------------------------------------------------\n\n");
     }
 
-    /* Load certificates into ctx variable */
-    if (wolfSSL_CTX_load_verify_locations(ctx, certs, 0) != SSL_SUCCESS) {
-        fprintf(stderr, "Error loading %s, please check the file.\n", certs);
-        return 1;
-    }
+    while (!(SSL_get_shutdown(ssl) & SSL_RECEIVED_SHUTDOWN)) {
 
-    /* Assign ssl variable */
-    ssl = wolfSSL_new(ctx);
-    if (ssl == NULL) {
-        printf("unable to get ssl object");
-        return 1;
-    }
+		if (messagenumber > 0) {
+			len = SSL_write(ssl, buf, 100);
 
-    /* servAddr setup */
-    memset(&servAddr, 0, sizeof(servAddr));
-    servAddr.sin_family = AF_INET;
-    servAddr.sin_port = htons(SERV_PORT);
-    if (inet_pton(AF_INET, argv[1], &servAddr.sin_addr) < 1) {
-        printf("Error and/or invalid IP address");
-        return 1;
-    }
-
-    wolfSSL_dtls_set_peer(ssl, &servAddr, sizeof(servAddr));
-
-    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-       printf("cannot create a socket.");
-       return 1;
-    }
-
-    /* Set the file descriptor for ssl and connect with ssl variable */
-    wolfSSL_set_fd(ssl, sockfd);
-    if (wolfSSL_connect(ssl) != SSL_SUCCESS) {
-	    err1 = wolfSSL_get_error(ssl, 0);
-	    printf("err = %d, %s\n", err1, wolfSSL_ERR_reason_error_string(err1));
-	    printf("SSL_connect failed");
-        return 1;
-    }
-
-    printf("Connected to server.\n");
-
-    for (;;) {
-        printf("Insert message to the server: ");
-        memset(sendLine, '\0', (strlen(sendLine) + 1));
-        fgets(sendLine, MAXLINE, stdin);
-
-        if (strcmp(sendLine, "quit\n") == 0) {
-            break;
-        }
-        
-        if ((wolfSSL_write(ssl, sendLine, strlen(sendLine))) != strlen(sendLine)) {
-            printf("SSL_write failed");
-        }
-
-        /* n is the # of bytes received */
-        n = wolfSSL_read(ssl, recvLine, sizeof(recvLine)-1);
-
-        if (n < 0) {
-            readErr = wolfSSL_get_error(ssl, 0);
-            if (readErr != SSL_ERROR_WANT_READ) {
-                printf("wolfSSL_read failed");
+            if (len < 0) {
+                printf("SSL_write error.\n");
+                break;
             }
-        }
+            if (len == 0) {
+                break;
+            }
+            printf("wrote %d bytes\n", (int) len);
+			messagenumber--;
 
-        if (n == 0) printf("Connection closed!\n");
+            if (messagenumber == 0)
+			    SSL_shutdown(ssl);
+		}
 
-        /* Add a terminating character to the generic server message */
-        recvLine[n] = '\0';
-        printf("Server acknowledgment: %s\n", recvLine);
-    }
+        reading = 1;
+		while (reading) {
+			len = SSL_read(ssl, buf, sizeof(buf));
 
-    printf("--------------------------------------------\n");
-    
-    /* cleanup */
-    printf("Closing connection...\n");
-    wolfSSL_shutdown(ssl);
-    wolfSSL_free(ssl);
-    close(sockfd);
-    wolfSSL_CTX_free(ctx);
-    wolfSSL_Cleanup();
-    printf("Done.\n");
+            if (len < 0) {
+                printf("SSL_read error.\n");
+                break;
+            }
 
-    return 0;
+            if (len == 0) {
+                break;
+            }
+
+            printf("read %d bytes\n", (int) len);
+			reading = 0;
+		}
+	}
+
+	close(sockfd);
+	printf("Connection closed.\n");
+
+    return 0; 
 }

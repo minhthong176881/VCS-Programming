@@ -1,20 +1,22 @@
-CFLAGS = -Wall -g -LLIBDIR
+CFLAGS = -std=c99 -pedantic -Wall -g -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-overlength-strings
 CC = gcc
-LIB = -I/usr/local/include -L/usr/local/lib -lwolfssl
+INCLUDES    = -I/usr/local/include
+LFLAGS      = -L/usr/local/lib
+LIBS        = -lssl -lcrypto -pthread -lm -ldl
 
 all: clean serverBuild clientBuild
 
 .PHONY: client server
 
-server: cleanServer serverBuild 
+server: cleanServer serverBuild
 
 client: cleanClient clientBuild
 
 serverBuild:
-	${CC} ${CFLAGS} -o server server.c ${LIB}
+	${CC} server.c ${CFLAGS} $(INCLUDES) -o server $(LFLAGS) $(LIBS)
 
 clientBuild:
-	${CC} ${CFLAGS} -o client client.c ${LIB}
+	${CC} client.c ${CFLAGS} $(INCLUDES) -o client $(LFLAGS) $(LIBS)
 
 cleanServer:
 	rm -f server

@@ -18,9 +18,9 @@ void *connectionHandler();
 
 int main() {
     int no_threads = 0;
-    pthread_t threads[120];
+    pthread_t threads[1000];
 
-    while (no_threads < 120)
+    while (no_threads < 1000)
     {
         if (pthread_create(&threads[no_threads], NULL, connectionHandler, NULL) < 0) {
             perror("Error");
@@ -31,7 +31,7 @@ int main() {
     }
 
     int k = 0;
-    for (k = 0; k < 120; k++) {
+    for (k = 0; k < 1000; k++) {
         pthread_join(threads[k], NULL);
     }
 

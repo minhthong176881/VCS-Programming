@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "assert.h": "c",
+        "time.h": "c",
+        "inet.h": "c"
+    },
+    "C_Cpp.errorSquiggles": "Disabled"
+}
