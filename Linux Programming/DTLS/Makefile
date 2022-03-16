@@ -2,7 +2,7 @@ CFLAGS = -std=c99 -pedantic -Wall -g -Wextra -Wno-unused-parameter -Wno-unused-f
 CC = gcc
 INCLUDES    = -I/usr/local/include
 LFLAGS      = -L/usr/local/lib
-LIBS        = -lssl -lcrypto -pthread -lm -ldl
+LIBS        = -lssl -lcrypto -lm -ldl
 
 all: clean serverBuild clientBuild
 

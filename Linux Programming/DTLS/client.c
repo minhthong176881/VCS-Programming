@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
@@ -14,7 +15,7 @@
 #include <openssl/rand.h>
 #include <openssl/opensslv.h>
 
-#define SERV_PORT 1255
+#define SERV_PORT 5500
 #define BUFFER_SIZE (1<<16)
 
 int main(int agrc, char **argv) {
@@ -28,7 +29,7 @@ int main(int agrc, char **argv) {
 	BIO *bio;
 	int reading = 0;
 	struct timeval timeout;
-    int messagenumber = 5;
+    // int messagenumber = 5;
 
     memset(&servaddr, 0, sizeof(servaddr));
 
@@ -67,6 +68,7 @@ int main(int agrc, char **argv) {
 
     SSL_set_bio(ssl, bio, bio);
 
+    // initiate the handshake with the server
     retval = SSL_connect(ssl);
 
     if (retval <= 0) {
@@ -91,39 +93,77 @@ int main(int agrc, char **argv) {
 
     while (!(SSL_get_shutdown(ssl) & SSL_RECEIVED_SHUTDOWN)) {
 
-		if (messagenumber > 0) {
-			len = SSL_write(ssl, buf, 100);
-
-            if (len < 0) {
-                printf("SSL_write error.\n");
-                break;
-            }
-            if (len == 0) {
-                break;
-            }
-            printf("wrote %d bytes\n", (int) len);
-			messagenumber--;
-
-            if (messagenumber == 0)
-			    SSL_shutdown(ssl);
-		}
-
-        reading = 1;
-		while (reading) {
-			len = SSL_read(ssl, buf, sizeof(buf));
-
-            if (len < 0) {
-                printf("SSL_read error.\n");
+		// if (messagenumber > 0) {
+        for (;;) {
+            printf("Insert message to the server: ");
+            memset(buf, '\0', (strlen(buf) + 1));
+            fgets(buf, 100, stdin);
+            if (strcmp(buf, "quit\n") == 0) {
+                SSL_shutdown(ssl);
                 break;
             }
 
-            if (len == 0) {
-                break;
+            len = SSL_write(ssl, buf, strlen(buf));
+
+            switch (SSL_get_error(ssl, len)) {
+                case SSL_ERROR_NONE:
+                    printf("wrote %d bytes\n", (int) len);
+                    // messagenumber--;
+                    break;
+                case SSL_ERROR_WANT_WRITE:
+                    // try again later 
+                    break;
+                case SSL_ERROR_WANT_READ:
+                    // continue with reading 
+                    break;
+                case SSL_ERROR_SSL:
+                    printf("SSL write error: ");
+                    printf("%s (%d)\n", ERR_error_string(ERR_get_error(), buf), SSL_get_error(ssl, len));
+                    exit(1);
+                    break;
+                default:
+                    printf("Unexpected error while writing!\n");
+                    exit(1);
+                    break;
             }
 
-            printf("read %d bytes\n", (int) len);
-			reading = 0;
-		}
+                // if (messagenumber == 0)
+                    // SSL_shutdown(ssl);
+            // }
+
+            reading = 1;
+            while (reading) {
+                len = SSL_read(ssl, buf, sizeof(buf));
+
+                switch (SSL_get_error(ssl, len)) {
+                    case SSL_ERROR_NONE:
+                        printf("read %d bytes\n", (int) len);
+                        reading = 0;
+                        break;
+                    case SSL_ERROR_WANT_READ:
+                        // stop reading on socket timeout, otherwise try again
+                        if (BIO_ctrl(SSL_get_rbio(ssl), BIO_CTRL_DGRAM_GET_RECV_TIMER_EXP, 0, NULL)) {
+                            printf("Timeout! No response received.\n");
+                            reading = 0;
+                        }
+                        break;
+                    case SSL_ERROR_ZERO_RETURN:
+                        reading = 0;
+                        break;
+                    case SSL_ERROR_SSL:
+                        printf("SSL read error: ");
+                        printf("%s (%d)\n", ERR_error_string(ERR_get_error(), buf), SSL_get_error(ssl, len));
+                        exit(1);
+                        break;
+                    default:
+                        printf("Unexpected error while reading!\n");
+                        exit(1);
+                        break;
+                }
+            }
+        }
+
+        SSL_shutdown(ssl);
 	}
 
 	close(sockfd);

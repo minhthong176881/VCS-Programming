@@ -4,9 +4,9 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <pthread.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
@@ -14,49 +14,12 @@
 #include <openssl/rand.h>
 #include <openssl/opensslv.h>
 
-#define SERV_PORT 1255
-#define MAXLINE 255
+#define SERV_PORT 5500
 #define BUFFER_SIZE          (1<<16)
 #define COOKIE_SECRET_LENGTH 16
 
-static pthread_mutex_t* mutex_buf = NULL;
 unsigned char cookie_secret[COOKIE_SECRET_LENGTH];
-int cookie_initialized=0;
-
-static void locking_function(int mode, int n, const char *file, int line) {
-	if (mode & CRYPTO_LOCK)
-		pthread_mutex_lock(&mutex_buf[n]);
-	else
-		pthread_mutex_unlock(&mutex_buf[n]);
-}
-
-static unsigned long id_function(void) {
-	return (unsigned long) pthread_self();
-}
-
-int thread_setup() {
-    int i;
-    mutex_buf = (pthread_mutex_t*) malloc(CRYPTO_num_locks() * sizeof(pthread_mutex_t));
-    if (!mutex_buf) return 0;
-    for (i = 0; i < CRYPTO_num_locks(); i++) {
-        pthread_mutex_init(&mutex_buf[i], NULL);
-    }
-    CRYPTO_set_id_callback(id_function);
-    CRYPTO_set_locking_callback(locking_function);
-    return 1;
-}
-
-int thread_cleanup() {
-    int i;
-    if (!mutex_buf) return 0;
-
-    CRYPTO_set_id_callback(NULL);
-    CRYPTO_set_locking_callback(NULL);
-    for (i = 0; i < CRYPTO_num_locks(); i++) pthread_mutex_destroy(&mutex_buf[i]);
-    free(mutex_buf);
-    mutex_buf = NULL;
-    return 1;
-}
+int cookie_initialized = 0;
 
 int generate_cookie(SSL *ssl, unsigned char *cookie, unsigned int *cookie_len) {
     unsigned char *buffer, result[EVP_MAX_MD_SIZE];
@@ -147,7 +110,7 @@ int dtls_verify_callback (int ok, X509_STORE_CTX *ctx) {
 	return 1;
 }
 
-void* connection_handle(void *info) {
+void connection_handle(void *info) {
     ssize_t len;
 	char buf[BUFFER_SIZE];
 	char addrbuf[INET6_ADDRSTRLEN];
@@ -158,8 +121,6 @@ void* connection_handle(void *info) {
 	struct timeval timeout;
 	int num_timeouts = 0, max_timeouts = 5;
 
-    pthread_detach(pthread_self());
-
     OPENSSL_assert(pinfo->client_addr.sin_family == pinfo->server_addr.sin_family);
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
@@ -167,7 +128,6 @@ void* connection_handle(void *info) {
         close(fd);
         free(info);
         SSL_free(ssl);
-        pthread_exit( (void *) NULL );
     }
 
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const void*)&on, (socklen_t) sizeof(on));
@@ -177,22 +137,17 @@ void* connection_handle(void *info) {
         close(fd);
         free(info);
         SSL_free(ssl);
-        pthread_exit( (void *) NULL );
     }
     if (connect(fd, (struct sockaddr *) &pinfo->client_addr, sizeof(struct sockaddr_in))) {
         perror("Connect failed!");
         close(fd);
         free(info);
         SSL_free(ssl);
-        pthread_exit( (void *) NULL );
     }
 
     // set new fd and set BIO to connected
     BIO_set_fd(SSL_get_rbio(ssl), fd, BIO_NOCLOSE);
     BIO_ctrl(SSL_get_rbio(ssl), BIO_CTRL_DGRAM_SET_CONNECTED, 0, &pinfo->client_addr);
-
-    printf("cookie: ");
-    fputs(&cookie_secret, stdout);
 
     // finish handshake
     do {
@@ -204,7 +159,6 @@ void* connection_handle(void *info) {
         close(fd);
         free(info);
         SSL_free(ssl);
-        pthread_exit( (void *) NULL );
     }
 
     // set and active timeouts
@@ -212,7 +166,7 @@ void* connection_handle(void *info) {
     timeout.tv_usec = 0;
     BIO_ctrl(SSL_get_rbio(ssl), BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &timeout);
 
-    printf("Thread %lx: accept connection from %s:%d\n", id_function(), 
+    printf("Accept connection from %s:%d\n", 
             inet_ntop(AF_INET, &pinfo->client_addr.sin_addr, addrbuf, INET_ADDRSTRLEN),
             ntohs(pinfo->client_addr.sin_port));
     
@@ -229,29 +183,63 @@ void* connection_handle(void *info) {
         while (reading) {
             len = SSL_read(ssl, buf, sizeof(buf));
 
-            if (len < 0) {
-                printf("SSL_read error\n");
-                close(fd);
-                free(info);
-                SSL_free(ssl);
-                pthread_exit( (void *) NULL );
-            } else if (len == 0) break;
-            else {
-                printf("Thread %lx: read %d bytes\n", id_function(), (int) len);
-			    reading = 0;
-            }
+            switch (SSL_get_error(ssl, len)) {
+				case SSL_ERROR_NONE:
+					printf("read %d bytes\n", (int) len);
+					reading = 0;
+					break;
+				case SSL_ERROR_WANT_READ:
+					// handle socket timeouts
+					if (BIO_ctrl(SSL_get_rbio(ssl), BIO_CTRL_DGRAM_GET_RECV_TIMER_EXP, 0, NULL)) {
+						num_timeouts++;
+						reading = 0;
+					}
+					// try again 
+					break;
+				case SSL_ERROR_ZERO_RETURN:
+					reading = 0;
+					break;
+				case SSL_ERROR_SSL:
+					printf("SSL read error: ");
+					printf("%s (%d)\n", ERR_error_string(ERR_get_error(), buf), SSL_get_error(ssl, len));
+                    close(fd);
+                    free(info);
+                    SSL_free(ssl);
+					break;
+				default:
+					printf("Unexpected error while reading!\n");
+                    close(fd);
+                    free(info);
+                    SSL_free(ssl);
+					break;
+			}
         }
 
         if (len > 0) {
             len = SSL_write(ssl, buf, len);
-            if (len < 0) {
-                printf("SSL_write error.\n");
-                close(fd);
-                free(info);
-                SSL_free(ssl);
-                pthread_exit( (void *) NULL );
-            } else if (len == 0) break;
-            else printf("Thread %lx: wrote %d bytes\n", id_function(), (int) len);
+            switch (SSL_get_error(ssl, len)) {
+				case SSL_ERROR_NONE:
+					printf("wrote %d bytes\n", (int) len);
+					break;
+				case SSL_ERROR_WANT_WRITE:
+					// can't write because of a renegotiation, retry sending this message...
+					break;
+				case SSL_ERROR_WANT_READ:
+					// continue with reading
+					break;
+				case SSL_ERROR_SSL:
+					printf("SSL write error: ");
+					printf("%s (%d)\n", ERR_error_string(ERR_get_error(), buf), SSL_get_error(ssl, len));
+                    close(fd);
+                    free(info);
+                    SSL_free(ssl);
+					break;
+				default:
+					printf("Unexpected error while writing!\n");
+                    close(fd);
+                    free(info);
+					break;
+			}
         }
     }
 
@@ -262,7 +250,6 @@ int main() {
     int sockfd, res;
     struct sockaddr_in servaddr, cliaddr;
     socklen_t len = sizeof(int);
-    pthread_t tid;
     SSL_CTX *ctx;
     SSL *ssl;
     BIO *bio;
@@ -271,7 +258,6 @@ int main() {
     const int on = 1;
 
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    // bzero(&servaddr, sizeof(servaddr));
     memset(&servaddr, 0, sizeof(struct sockaddr_storage));
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     servaddr.sin_family = AF_INET;
@@ -283,7 +269,6 @@ int main() {
         return 0;
     }
 
-    thread_setup();
     OpenSSL_add_ssl_algorithms();
     SSL_load_error_strings();
     ctx = SSL_CTX_new(DTLS_server_method());
@@ -328,8 +313,11 @@ int main() {
         ssl = SSL_new(ctx);
 
         SSL_set_bio(ssl, bio, bio);
+
+        // enable cookie exchange
         SSL_set_options(ssl, SSL_OP_COOKIE_EXCHANGE);
 
+        // listen until new DTLS connections coming
         while (DTLSv1_listen(ssl, (BIO_ADDR *) &cliaddr) <= 0);
 
         info = (struct pass_info*) malloc (sizeof(struct pass_info));
@@ -337,12 +325,8 @@ int main() {
         memcpy(&info->client_addr, &cliaddr, sizeof(struct sockaddr_storage));
         info->ssl = ssl;
 
-        if (pthread_create(&tid, NULL, connection_handle, info) != 0) {
-            perror("pthread_create");
-            exit(-1);
-        }
+        connection_handle(info);
     }
 
-    thread_cleanup();
     return 0;
 }
